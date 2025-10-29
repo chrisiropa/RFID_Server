@@ -1,6 +1,7 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -28,15 +29,15 @@ namespace RFID_Server
       
       public void Init()
       {  
+         listener = new TcpListener(listenAddress, listenPort);
       }
 
       public void MainThread()
       {
-         listener = new TcpListener(listenAddress, listenPort);
-
          running = true;
          listener.Start();
-         Console.WriteLine("RFID Server lauscht auf " + listener.LocalEndpoint);
+
+         TheRFID_Server.TheST.ZLog(ELF.INFO, "RFID Server lauscht auf " + listener.LocalEndpoint);
 
          while (running)
          {
@@ -57,79 +58,93 @@ namespace RFID_Server
             }
             catch (Exception ex)
             {
-               Console.WriteLine("Accept error: " + ex.Message);
+               TheRFID_Server.TheST.ZLog(ELF.INFO, "MainThread Exception = {0}", ex.Message); 
             }
          }
       }
 
       private void HandleClient(object clientObj)
       {
-            var client = (TcpClient)clientObj;
-            var remote = client.Client.RemoteEndPoint;
-            Console.WriteLine($"Verbunden: {remote}");
+          var client = (TcpClient)clientObj;
+          var remote = client.Client.RemoteEndPoint;
+          TheRFID_Server.TheST.ZLog(ELF.INFO, $"Verbunden: {remote}");
 
-            try
-            {
-               var stream = client.GetStream();
-               var buffer = new byte[2048];
-               int read = stream.Read(buffer, 0, buffer.Length);
+          try
+          {
+              var stream = client.GetStream();
+              var buffer = new byte[4096]; // größerer Zwischenpuffer
+              var receivedData = new List<byte>();
 
-               if (read > 0)
-               {
-                  Console.WriteLine($"Empfangen {read} Bytes von {remote}");
-
-                  // Nur die tats�chlich empfangenen Bytes extrahieren
-                  byte[] data = new byte[read];
-                  Array.Copy(buffer, data, read);
-
-                  // Nur wenn genau 42 Bytes empfangen wurden
-                  if (data.Length == 42)
+              while (client.Connected)
+              {
+                  if (!stream.DataAvailable)
                   {
-                     //Erstmal alles printen
-                     byte[] bytes = ExtractPart(data, 0, 42);
-                     string alles = BitConverter.ToString(bytes).Replace("-", "");
-                        
-                         
-                        bytes = ExtractPart(data, 0, 4);
-                        string reserved = BitConverter.ToString(bytes).Replace("-", "");
-                        bytes = ExtractPart(data, 4, 1);
-                        string dataType = BitConverter.ToString(bytes).Replace("-", "");
-                        bytes = ExtractPart(data, 5, 1);
-                        string dataSize = BitConverter.ToString(bytes).Replace("-", "");
-                        bytes = ExtractPart(data, 6, 4);
-                        string payLoad = BitConverter.ToString(bytes).Replace("-", "");
-                        bytes = ExtractPart(data, 38, 4);
-                        string ident = BitConverter.ToString(bytes).Replace("-", "");
-
-
-
-                        Console.WriteLine("Alles    = {0}", alles);
-                        Console.WriteLine("Reserved = {0}", reserved);
-                        Console.WriteLine("DataType = {0}", dataType);
-                        Console.WriteLine("DataSize = {0}", dataSize);
-                        Console.WriteLine("PayLoad  = {0}", payLoad);
-                        Console.WriteLine("Ident    = {0}", ident);
-
+                      Thread.Sleep(10); // CPU schonen
+                      continue;
                   }
-                  else
+
+                  int bytesRead = stream.Read(buffer, 0, buffer.Length);
+                  if (bytesRead <= 0)
+                      break; // Verbindung geschlossen
+
+                  // Gelesene Bytes anhängen
+                  receivedData.AddRange(buffer.Take(bytesRead));
+                  TheRFID_Server.TheST.ZLog(ELF.INFO, $"Empfangen {bytesRead} Bytes von {remote}");
+
+                  // Solange wir mindestens 42 Bytes haben → verarbeiten
+                  while (receivedData.Count >= 42)
                   {
-                        Console.WriteLine($"Ung�ltige L�nge ({data.Length}). Erwartet: 42 Bytes.");
+                      byte[] frame = receivedData.Take(42).ToArray();
+                      receivedData.RemoveRange(0, 42);
+
+                      ProcessFrame(frame, remote);
                   }
-               }
-               else
-               {
-                  Console.WriteLine($"Keine Daten empfangen von {remote}");
-               }
-            }
-            catch (Exception ex)
-            {
-               Console.WriteLine($"Fehler bei Client {remote}: {ex.Message}");
-            }
-            finally
-            {
-               client.Close();
-               Console.WriteLine($"Verbindung geschlossen: {remote}");
-            }
+              }
+          }
+          catch (Exception ex)
+          {
+              TheRFID_Server.TheST.ZLog(ELF.INFO, $"Fehler bei Client {remote}: {ex.Message}");
+          }
+          finally
+          {
+              client.Close();
+              TheRFID_Server.TheST.ZLog(ELF.INFO, $"Verbindung geschlossen: {remote}");
+          }
+      }
+
+      private void ProcessFrame(byte[] data, EndPoint remote)
+      {
+         if (data.Length != 42)
+         {
+            TheRFID_Server.TheST.ZLog(ELF.INFO, $"Ungültige Länge ({data.Length}). Erwartet: 42 Bytes.");
+            return;
+         }
+
+         byte[] bytes;
+
+         string alles = BitConverter.ToString(data).Replace("-", "");
+
+         bytes = ExtractPart(data, 0, 4);
+         string reserved = BitConverter.ToString(bytes).Replace("-", "");
+
+         bytes = ExtractPart(data, 4, 1);
+         string dataType = BitConverter.ToString(bytes).Replace("-", "");
+
+         bytes = ExtractPart(data, 5, 1);
+         string dataSize = BitConverter.ToString(bytes).Replace("-", "");
+
+         bytes = ExtractPart(data, 6, 4);
+         string payLoad = BitConverter.ToString(bytes).Replace("-", "");
+
+         bytes = ExtractPart(data, 38, 4);
+         string ident = BitConverter.ToString(bytes).Replace("-", "");
+
+         TheRFID_Server.TheST.ZLog(ELF.INFO, "Alles    = {0}", alles);
+         TheRFID_Server.TheST.ZLog(ELF.INFO, "Reserved = {0}", reserved);
+         TheRFID_Server.TheST.ZLog(ELF.INFO, "DataType = {0}", dataType);
+         TheRFID_Server.TheST.ZLog(ELF.INFO, "DataSize = {0}", dataSize);
+         TheRFID_Server.TheST.ZLog(ELF.INFO, "PayLoad  = {0}", payLoad);
+         TheRFID_Server.TheST.ZLog(ELF.INFO, "Ident    = {0}", ident);
       }
 
 
