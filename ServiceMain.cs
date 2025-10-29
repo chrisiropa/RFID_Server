@@ -54,7 +54,7 @@ namespace RFID_Server
             }
             catch (SocketException) 
             { 
-               /* Listener gestoppt */ 
+               TheRFID_Server.TheST.ZLog(ELF.INFO, "Listener gestoppt...");
             }
             catch (Exception ex)
             {
@@ -65,54 +65,54 @@ namespace RFID_Server
 
       private void HandleClient(object clientObj)
       {
-          var client = (TcpClient)clientObj;
-          var remote = client.Client.RemoteEndPoint;
-          TheRFID_Server.TheST.ZLog(ELF.INFO, $"Verbunden: {remote}");
+         var client = (TcpClient)clientObj;
+         var remote = client.Client.RemoteEndPoint;
+         TheRFID_Server.TheST.ZLog(ELF.INFO, $"Verbunden: {remote}");
 
-          try
-          {
-              var stream = client.GetStream();
-              var buffer = new byte[4096]; // größerer Zwischenpuffer
-              var receivedData = new List<byte>();
+         try
+         {
+            var stream = client.GetStream();
+            var buffer = new byte[4096]; // größerer Zwischenpuffer
+            var receivedData = new List<byte>();
 
-              while (client.Connected)
-              {
-                  if (!stream.DataAvailable)
-                  {
-                      Thread.Sleep(10); // CPU schonen
-                      continue;
-                  }
+            while (client.Connected)
+            {
+               if (!stream.DataAvailable)
+               {
+                  Thread.Sleep(10); // CPU schonen
+                  continue;
+               }
 
-                  int bytesRead = stream.Read(buffer, 0, buffer.Length);
-                  if (bytesRead <= 0)
-                      break; // Verbindung geschlossen
+               int bytesRead = stream.Read(buffer, 0, buffer.Length);
+               if (bytesRead <= 0)
+               {
+                  break; // Verbindung geschlossen
+               }
 
-                  // Gelesene Bytes anhängen
-                  receivedData.AddRange(buffer.Take(bytesRead));
-                  TheRFID_Server.TheST.ZLog(ELF.INFO, $"Empfangen {bytesRead} Bytes von {remote}");
+               // Gelesene Bytes anhängen
+               receivedData.AddRange(buffer.Take(bytesRead));
+               TheRFID_Server.TheST.ZLog(ELF.INFO, $"Empfangen {bytesRead} Bytes von {remote}");
 
-                  // Solange wir mindestens 42 Bytes haben → verarbeiten
-                  while (receivedData.Count >= 42)
-                  {
-                      byte[] frame = receivedData.Take(42).ToArray();
-                      receivedData.RemoveRange(0, 42);
-
-                      ProcessFrame(frame, remote);
-                  }
-              }
-          }
-          catch (Exception ex)
-          {
-              TheRFID_Server.TheST.ZLog(ELF.INFO, $"Fehler bei Client {remote}: {ex.Message}");
-          }
-          finally
-          {
-              client.Close();
-              TheRFID_Server.TheST.ZLog(ELF.INFO, $"Verbindung geschlossen: {remote}");
-          }
+               // Solange wir mindestens 42 Bytes haben → verarbeiten
+               while (receivedData.Count >= 42)
+               {
+                  byte[] frame = receivedData.Take(42).ToArray();
+                  receivedData.RemoveRange(0, 42);
+                  ProcessFrame(frame);
+               }
+            }
+         }
+         catch (Exception ex)
+         {
+            TheRFID_Server.TheST.ZLog(ELF.INFO, $"Fehler bei Client {remote}: {ex.Message}");
+         }
+         finally
+         {
+            client.Close();
+            TheRFID_Server.TheST.ZLog(ELF.INFO, $"Verbindung geschlossen: {remote}");
+         }
       }
-
-      private void ProcessFrame(byte[] data, EndPoint remote)
+      private void ProcessFrame(byte[] data)
       {
          if (data.Length != 42)
          {
@@ -151,13 +151,15 @@ namespace RFID_Server
       public static byte[] ExtractPart(byte[] data, int start, int len)
       {
          if (data == null)
+         {
             throw new ArgumentNullException(nameof(data));
+         }
 
          if (data.Length != 42)
+         {
             throw new ArgumentException($"Expected 42 bytes, got {data.Length}.");
+         }
 
-         // Beispiel: nimm alles ab Byte 4 bis 41 als "Payload"
-         // (kannst du bei Bedarf anpassen)
          int payloadStart = start;
          int payloadLength = len;
 
