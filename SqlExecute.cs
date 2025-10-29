@@ -8,8 +8,11 @@ namespace RFID_Server
 {
    public class SqlExecute
    {
+      private string connectionString;
       private string stmt;
       private int affectedRows = -1;
+      public string Exception = "";
+
       
       public int AffectedRows
       {
@@ -19,8 +22,9 @@ namespace RFID_Server
          }
       }
 
-      public SqlExecute(string formatString, params object[] paramObjects)
+      public SqlExecute(string connectionString, string formatString, params object[] paramObjects)
       {
+         this.connectionString = connectionString;
          this.stmt = string.Format(formatString, paramObjects);
 
          Execute();
@@ -32,8 +36,8 @@ namespace RFID_Server
 
          if (sqlConnection == null)
          {
-            throw new Exception("SqlExecute.Execute -> Störung der Datenbankverbindung !");
-         }
+            Exception = string.Format("SqlExecute -> Konnte keine Datenbankverbindung herstellen ! Statement: #{0}# ", stmt);
+			}
 
          try
          {
@@ -46,8 +50,8 @@ namespace RFID_Server
          }
          catch (Exception e)
          {
-            throw new Exception(string.Format("SqlExecute -> Fehler beim Ausführen des Statements: #{0}# -> {1} ", stmt, e.Message));
-         }
+            Exception = string.Format("SqlExecute -> Exception bei der Ausführung des Statements: #{0}# -> {1}", stmt, e.Message);  
+			}
          finally
          {
             sqlConnection.Close();

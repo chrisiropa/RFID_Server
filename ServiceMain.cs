@@ -145,7 +145,75 @@ namespace RFID_Server
          TheRFID_Server.TheST.ZLog(ELF.INFO, "DataSize = {0}", dataSize);
          TheRFID_Server.TheST.ZLog(ELF.INFO, "PayLoad  = {0}", payLoad);
          TheRFID_Server.TheST.ZLog(ELF.INFO, "Ident    = {0}", ident);
+
+
+         if(CheckIdent(ident))
+         {
+            WriteLogin(payLoad);
+         }
       }
+
+      private Boolean CheckIdent(string ident)
+      {
+         TheRFID_Server.TheST.ZLog(ELF.INFO, "Überprüfen des Ident Codes des vorgeführten Chips ({0})", ident);
+
+         string statement = string.Format("select Wert from RFID197_PARAM where Name like 'RFID_Ident_Code'");
+         string masterIdent = "";
+
+			SimpleSqlQuery query = new SimpleSqlQuery(ConfigManager.GetSingleton().ConnectionString, statement);
+         if ((query.QueryResult != null) && (query.QueryResult.Count > 0))
+         {
+            foreach (Dictionary<string, object> row in query.QueryResult)
+            {
+               try
+               {
+                  masterIdent = (string)row["Wert"];  
+               }
+               catch(Exception e)
+               {
+                  TheRFID_Server.TheST.ZLog(ELF.ERROR, "CheckIdent fehlgeschlagen. -> {0} -> statement = {1}", e.Message, statement);
+                  return false;
+					}
+
+               if(masterIdent == ident)
+               {
+                  TheRFID_Server.TheST.ZLog(ELF.SUCCESS, "Ident Code des vorgeführten Chips ist gültig ({0})", ident);
+                  return true;
+					}
+               else
+               {
+                  TheRFID_Server.TheST.ZLog(ELF.ERROR, "Ident Code des vorgeführten Chips ist ungültig ! ident = {0} masterIdent = {1}", ident, masterIdent);
+                  return false;
+               }
+				}
+         }
+         else
+         {
+            TheRFID_Server.TheST.ZLog(ELF.ERROR, "Ident Code des vorgeführten Chips ist ungültig -> ({0})", statement);
+            return false;
+         }  
+
+         TheRFID_Server.TheST.ZLog(ELF.ERROR, "Ident Code des vorgeführten Chips ist ungültig !");
+
+         return false;
+      }
+
+      private void WriteLogin(string login)
+      {
+         string statement = string.Format("insert into RFID197_LOGINS (LoginDate, RFID_Code) values (getdate(), '{0}')", login);
+         //string.Format("insert into RFID197_LOGINS (LoginTime, LoginUser) values (getdate(), '{0}')", login);
+         
+
+         SqlExecute execute = new SqlExecute(ConfigManager.GetSingleton().ConnectionString, statement);
+            
+         if(execute.Exception != "")
+         {
+            TheRFID_Server.TheST.ZLog(ELF.ERROR, "Login konnte nicht in die Datenbank geschrieben werden -> {0} -> {1}", statement, execute.Exception);
+            return;
+         }
+
+         TheRFID_Server.TheST.ZLog(ELF.SUCCESS, "Login ({0}) erfolgreich in die Datenbank übernommen !", login);
+		}
 
 
       public static byte[] ExtractPart(byte[] data, int start, int len)

@@ -69,6 +69,7 @@
     <Compile Include="ServiceWrapper.designer.cs">
       <DependentUpon>ServiceWrapper.cs</DependentUpon>
     </Compile>
+    <Compile Include="SimpleSqlQuery.cs" />
     <Compile Include="SqlExecute.cs" />
     <Compile Include="TheRFID_Server.cs" />
   </ItemGroup>
