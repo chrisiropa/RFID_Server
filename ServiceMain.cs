@@ -69,6 +69,8 @@ namespace RFID_Server
          var remote = client.Client.RemoteEndPoint;
          TheRFID_Server.TheST.ZLog(ELF.INFO, $"Verbunden: {remote}");
 
+
+         
          try
          {
             var stream = client.GetStream();
@@ -98,7 +100,7 @@ namespace RFID_Server
                {
                   byte[] frame = receivedData.Take(42).ToArray();
                   receivedData.RemoveRange(0, 42);
-                  ProcessFrame(frame);
+                  ProcessFrame(frame, (((System.Net.IPEndPoint)remote).Address).ToString());
                }
             }
          }
@@ -112,7 +114,7 @@ namespace RFID_Server
             TheRFID_Server.TheST.ZLog(ELF.INFO, $"Verbindung geschlossen: {remote}");
          }
       }
-      private void ProcessFrame(byte[] data)
+      private void ProcessFrame(byte[] data, string station)
       {
          if (data.Length != 42)
          {
@@ -149,7 +151,7 @@ namespace RFID_Server
 
          if(CheckIdent(ident))
          {
-            WriteLogin(payLoad);
+            WriteLogin(payLoad, station);
          }
       }
 
@@ -157,7 +159,7 @@ namespace RFID_Server
       {
          TheRFID_Server.TheST.ZLog(ELF.INFO, "Überprüfen des Ident Codes des vorgeführten Chips ({0})", ident);
 
-         string statement = string.Format("select Wert from RFID197_PARAM where Name like 'RFID_Ident_Code'");
+         string statement = string.Format("select Wert from RFID_PARAM where Name like 'RFID_Ident_Code'");
          string masterIdent = "";
 
 			SimpleSqlQuery query = new SimpleSqlQuery(ConfigManager.GetSingleton().ConnectionString, statement);
@@ -198,11 +200,12 @@ namespace RFID_Server
          return false;
       }
 
-      private void WriteLogin(string login)
+      private void WriteLogin(string login, string station)
       {
-         string statement = string.Format("insert into RFID197_LOGINS (LoginDate, RFID_Code) values (getdate(), '{0}')", login);
-         //string.Format("insert into RFID197_LOGINS (LoginTime, LoginUser) values (getdate(), '{0}')", login);
-         
+         //string statement = string.Format("insert into RFID_PROD_LOGINS (LoginDate, RFID_Code) values (login);
+
+         string statement = string.Format("EXEC dbo.RFID_LOGIN @RFID_Code = '{0}', @Station = '{1}'", login, station);
+
 
          SqlExecute execute = new SqlExecute(ConfigManager.GetSingleton().ConnectionString, statement);
             
