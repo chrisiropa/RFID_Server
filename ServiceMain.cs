@@ -30,6 +30,9 @@ namespace RFID_Server
       public void Init()
       {  
          listener = new TcpListener(listenAddress, listenPort);
+
+         
+
       }
 
       public void MainThread()
@@ -159,8 +162,8 @@ namespace RFID_Server
       {
          TheRFID_Server.TheST.ZLog(ELF.INFO, "Überprüfen des Ident Codes des vorgeführten Chips ({0})", ident);
 
-         string statement = string.Format("select Wert from RFID_PARAM where Name like 'RFID_Ident_Code'");
-         string masterIdent = "";
+         string statement = string.Format("select Wert from RFID_PARAM where Name like 'RFID_Ident_Code%'");
+         List<string> rfidIdent = new List<string>();
 
 			SimpleSqlQuery query = new SimpleSqlQuery(ConfigManager.GetSingleton().ConnectionString, statement);
          if ((query.QueryResult != null) && (query.QueryResult.Count > 0))
@@ -169,7 +172,7 @@ namespace RFID_Server
             {
                try
                {
-                  masterIdent = (string)row["Wert"];  
+                  rfidIdent.Add((string)row["Wert"]);  
                }
                catch(Exception e)
                {
@@ -177,25 +180,15 @@ namespace RFID_Server
                   return false;
 					}
 
-               if(masterIdent == ident)
+               if(rfidIdent[rfidIdent.Count - 1] == ident)
                {
-                  TheRFID_Server.TheST.ZLog(ELF.SUCCESS, "Ident Code des vorgeführten Chips ist gültig ({0})", ident);
+                  TheRFID_Server.TheST.ZLog(ELF.SUCCESS, "Ident Code des RFID-Lesers ist gültig ({0})", ident);
                   return true;
 					}
-               else
-               {
-                  TheRFID_Server.TheST.ZLog(ELF.ERROR, "Ident Code des vorgeführten Chips ist ungültig ! ident = {0} masterIdent = {1}", ident, masterIdent);
-                  return false;
-               }
 				}
          }
-         else
-         {
-            TheRFID_Server.TheST.ZLog(ELF.ERROR, "Ident Code des vorgeführten Chips ist ungültig -> ({0})", statement);
-            return false;
-         }  
 
-         TheRFID_Server.TheST.ZLog(ELF.ERROR, "Ident Code des vorgeführten Chips ist ungültig !");
+         TheRFID_Server.TheST.ZLog(ELF.ERROR, "Ident Code des RFID-Lesers ist ungültig -> {0}", ident);
 
          return false;
       }
@@ -204,7 +197,7 @@ namespace RFID_Server
       {
          //string statement = string.Format("insert into RFID_PROD_LOGINS (LoginDate, RFID_Code) values (login);
 
-         string statement = string.Format("EXEC dbo.RFID_LOGIN @RFID_Code = '{0}', @Station = '{1}'", login, station);
+         string statement = string.Format("EXEC dbo.RFID_LOGIN @RFID_Code = '{0}', @ClientIP = '{1}'", login, station);
 
 
          SqlExecute execute = new SqlExecute(ConfigManager.GetSingleton().ConnectionString, statement);
